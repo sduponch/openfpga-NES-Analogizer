@@ -369,7 +369,10 @@ end
           multitap_enabled <= bridge_wr_data[0];
         end
         12'h304: begin
-          lightgun_enabled <= bridge_wr_data[1:0]; //Modified to add support for Analogizer SNAC Zapper lightgun
+          //"Use Zapper": 0 off, 1 emulated, 2 SNAC Zapper, 3 emulated + JVS recoil, 4 emulated + JVS recoil auto
+          //(the recoil mode is decoded from the same write in openFPGA_Pocket_Analogizer.v)
+          lightgun_enabled <= (bridge_wr_data[2:0] == 3'd2) ? 2'b10 :
+                              (bridge_wr_data[2:0] == 3'd1 || bridge_wr_data[2:0] == 3'd3 || bridge_wr_data[2:0] == 3'd4) ? 2'b01 : 2'b00;
         end
         12'h308: begin
           lightgun_dpad_aim_speed <= bridge_wr_data[7:0];
@@ -493,7 +496,9 @@ end
   wire has_save;
 
   always @(posedge clk_74a) begin
-    if (dataslot_requestwrite) is_downloading <= 1;
+    //(not for the JVS profile, slot 24: it goes straight to the Analogizer, and nes_top resets the NES and clears the
+    //save RAM at the end of any other download)
+    if (dataslot_requestwrite && dataslot_requestwrite_id != 16'd24) is_downloading <= 1;
     else if (dataslot_allcomplete) is_downloading <= 0;
   end
 
@@ -690,7 +695,8 @@ end
 
   // Settings
   //reg [2:0] system_type = 0;
-  reg analogizer_ena = 0;
+  reg analogizer_ena = 1; //on until the menu says otherwise: a Chip32 restart (a data slot reloaded from the menu,
+                           //e.g. the JVS profile) reloads the bitstream and the Pocket does not write the setting again
   reg [1:0] region = 0;
   reg video_dejitter = 0;
 
@@ -803,7 +809,7 @@ wire       pocket_blank_screen;
   reg [31:0] p1_joystick, p2_joystick;
   reg  [15:0] p1_controls, p2_controls, p3_controls, p4_controls;
 
-wire snac_is_analog = (snac_game_cont_type == 5'h12) || (snac_game_cont_type == 5'h13);
+wire snac_is_analog = (snac_game_cont_type == 5'h12) || (snac_game_cont_type == 5'h13) || (snac_game_cont_type == 5'h14); //PSX analog, JVS (gun axes)
 wire [31:0] neutral_joystick = 32'h80808080;
 
 always @(posedge clk_ppu_21_47) begin

@@ -33,6 +33,36 @@ macro read() {
   read_end:
 }
 
+macro seek2() {
+  seek r1
+  jp z, seek2_end
+
+  // Failed to seek
+  ld r14,#seek_err
+  printf r14
+  hex.l r1
+  exit 1
+
+  seek2_end:
+}
+
+// Read function
+// Input: length - r1
+// Input: ouput memory address - r2
+// Clobbers Z
+macro read2() {
+  read r2,r1
+  jp z, read2_end
+
+  // Failed to read
+  ld r14,#read_err
+  printf r14
+  hex.l r1
+  exit 1
+
+  read2_end:
+}
+
 macro align(size) {
   while (pc() % {size}) {
     db 0

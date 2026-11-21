@@ -1,0 +1,4 @@
+[submodule "analogizer/jvs"]
+	path = analogizer/jvs
+	url = https://github.com/sduponch/jvs.git
+	branch = bus_state

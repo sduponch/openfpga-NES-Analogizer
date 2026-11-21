@@ -23,6 +23,7 @@ constant rom_dataslot = 0
 constant save_dataslot = 10
 constant pal_dataslot = 11
 constant analogizer_dataslot = 20
+constant jvs_profile_dataslot = 24
 
 
 //number of mapper codes to check in the data table
@@ -358,6 +359,13 @@ load_settings:
 
 	ld r1,#analogizer_dataslot
 	loadf r1 // Load Analogizer settings
+
+	//JVS profile (jvs_vendor.bin data slot, Analogizer JVS): only if a file is there
+	ld r1,#jvs_profile_dataslot
+	queryslot r1
+	jp nz,jvs_profile_done
+	loadf r1 // Load JVS profile
+jvs_profile_done:
 
 	//Send SYS_TYPE to the CORE at address 0x330
 	ld r8,#0x330

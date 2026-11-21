@@ -33,12 +33,6 @@
         "value": 1
       },
       {
-        "name": "Video Options",
-        "id": 39,
-        "type": "action",
-        "enabled": false
-      },
-      {
         "name": "Video Dejitter",
         "id": 44,
         "type": "list",
@@ -156,12 +150,6 @@
         ]
       },
       {
-        "name": "Controller Options",
-        "id": 90,
-        "type": "action",
-        "enabled": false
-      },
-      {
         "name": "Turbo Speed",
         "id": 91,
         "type": "slider_u32",
@@ -190,12 +178,6 @@
         "value": 1
       },
       {
-        "name": "Lightgun Options",
-        "id": 80,
-        "type": "action",
-        "enabled": false
-      },
-      {
         "name": "Use Zapper",
         "id": 81,
         "type": "list",
@@ -216,6 +198,14 @@
           {
             "value": 2,
             "name": "SNAC Zapper"
+          },
+          {
+            "value": 3,
+            "name": "Emulated + Recoil"
+          },
+          {
+            "value": 4,
+            "name": "Emulated + Recoil Auto"
           }
         ]
       },

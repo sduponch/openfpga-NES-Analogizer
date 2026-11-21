@@ -156,6 +156,17 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 
 	synch_3 #(.WIDTH(16)) analogizer_sync(analogizer_config[15:0], analogizer_config_s, i_clk);
 
+	//jvs_vendor.bin data slot (JVS profile, 256 bytes at 0x50000000): vendor init table and player axes / gun / outputs
+	localparam [7:0] ADDRESS_JVS_PROFILE = 8'h50;
+	wire jvs_profile_wr = bridge_wr && (bridge_addr[31:24] == ADDRESS_JVS_PROFILE) && (bridge_addr[23:8] == 16'h0);
+	//JVS gun recoil, from interact.json "Use Zapper" (0x304, the menu holds 16 entries at most): 3 emulated Zapper + recoil
+	//(single: a pulse per trigger press), 4 emulated Zapper + recoil auto (pulses while it is held), any other value no recoil
+	reg  [1:0] jvs_recoil_mode = 2'd0;
+	wire [1:0] jvs_recoil_mode_s;
+	always @(posedge clk_74a) if (bridge_wr && bridge_addr == 32'h0000_0304)
+		jvs_recoil_mode <= (bridge_wr_data[2:0] == 3'd3) ? 2'd1 : (bridge_wr_data[2:0] == 3'd4) ? 2'd2 : 2'd0;
+	synch_3 #(.WIDTH(2)) jvs_recoil_sync(jvs_recoil_mode, jvs_recoil_mode_s, i_clk);
+
 	always @(posedge clk_74a) begin
 		if(bridge_wr && bridge_addr == {ADDRESS_ANALOGIZER_CONFIG,24'h0}) begin
 			analogizer_config <=  {bridge_wr_data[23:16],bridge_wr_data[31:24]};
@@ -172,7 +183,7 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 	//regional_settings <= analogizer_config_s[19:16]; //need to be extended to 20 bits.
   end
 
-  wire conf_AB = (snac_game_cont_type >= 5'd16);
+  wire conf_AB = (snac_game_cont_type >= 5'd16) && (snac_game_cont_type != 5'd20); //JVS (20) uses the Conf. A pins
 
   	// always @(posedge i_clk) begin
   	// 	i_ena2 <= (	i_ena ? analogizer_ena ? 1'b1: 1'b0 : 1'b0;)
@@ -238,6 +249,12 @@ assign analogizer_osd_out        = analogizer_osd_out2;
 		.CART_PIN31_OUT(CART_PIN31_OUT),
 		.CART_PIN31_IN(CART_PIN31_IN),
 		.CART_PIN31_DIR(CART_PIN31_DIR),
+		//JVS profile (jvs_vendor.bin), written by the APF bridge
+		.clk_74a(clk_74a),
+		.vendor_wr(jvs_profile_wr),
+		.vendor_wr_addr(bridge_addr[7:2]),
+		.vendor_wr_data(bridge_wr_data),
+		.recoil_mode(jvs_recoil_mode_s),
 		//debug
 		.DBG_TX(DBG_TX),
     	.o_stb(o_stb)
