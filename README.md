@@ -128,6 +128,24 @@ Ported from the core originally developed by [Ludvig Strigeus](https://github.co
 
 Please report any issues encountered to this repo. Most likely any problems are a result of my port, not the original core. Issues will be upstreamed as necessary.
 
+## JVS (Analogizer JVS SNAC adapter, branch `jvs`)
+
+An arcade cabinet's JVS I/O board as the NES controllers, through the JVS SNAC adapter (the [jvs library](https://github.com/sduponch/jvs)'s `jvs_ctrl`).
+Tested on an Analogue Pocket with a Sega 838-13683B board (Duck Hunt with the Zapper and recoil).
+
+- Select it with **SNAC controller type 20 (JVS)** in `Assets/analogizer/common/analogizer.bin`.
+- Panel: Start = Start, Service or a coin = Select, push 1 = B, push 2 = A, push 3 / 4 = the Pocket's Y / X.
+- **JVS Profile** (Core Settings data slot, `Assets/nes/RndMnkIII.NES_Analogizer/jvs_*.bin`, remembered at the next
+  start): the cabinet's axes, gun trigger, recoil outputs and init frames, in the 256-byte format of the JVS library
+  (`scripts/jvs_vendor.py`). Reloading it does not reset the game. Shipped: `jvs_vendor.bin` (empty),
+  `jvs_zapper_p1.bin`, `jvs_sega_recoil_test.bin`, `jvs_namco_timecrisis4.bin`.
+- **Use Zapper**: Off, Emulated, SNAC Zapper, **Emulated + recoil**, **Emulated + recoil auto**. With a profile's gun,
+  the P1 axes aim the emulated Zapper and its trigger fires; the recoil is made from the trigger (single: 50 ms a shot;
+  auto: 50 ms on / 150 ms off while held) on the profile's OUTPUT1 bits.
+- Changes to fit the menu (16 entries at most, the reloadable profile slot takes one): the three section titles
+  were removed. The Chip32 loader loads the profile slot (`loadf`), and the Analogizer is enabled by default after a
+  slot reload (the loader restarts the core).
+
 ## Installation
 
 ### Easy mode
