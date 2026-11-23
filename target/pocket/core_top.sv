@@ -490,15 +490,21 @@ end
 
   reg is_downloading = 0;
 
+  //the CPU's internal RAM writes, for the recoil from the game's memory (the Analogizer's mem_recoil)
+  wire        nes_ram_wr;
+  wire [10:0] nes_ram_wa;
+  wire  [7:0] nes_ram_wd;
+
   wire ioctl_download = is_downloading && dataslot_requestwrite_id == 0;
   wire palette_download = is_downloading && dataslot_requestwrite_id == 11;
 
   wire has_save;
 
   always @(posedge clk_74a) begin
-    //(not for the JVS profile, slot 24: it goes straight to the Analogizer, and nes_top resets the NES and clears the
-    //save RAM at the end of any other download)
-    if (dataslot_requestwrite && dataslot_requestwrite_id != 16'd24) is_downloading <= 1;
+    //(not for the JVS profile, slot 24, nor the recoil database, slot 25: they go straight to the Analogizer, and
+    //nes_top resets the NES and clears the save RAM at the end of any other download)
+    if (dataslot_requestwrite && dataslot_requestwrite_id != 16'd24 && dataslot_requestwrite_id != 16'd25)
+      is_downloading <= 1;
     else if (dataslot_allcomplete) is_downloading <= 0;
   end
 
@@ -805,6 +811,9 @@ wire       pocket_blank_screen;
 
 //switch between Analogizer SNAC and Pocket Controls for P1-P4 (P3,P4 when uses PCEngine Multitap)
   wire [15:0] p1_btn, p2_btn, p3_btn, p4_btn;
+  //JVS: P1's gun as the Zapper on port 2, apart from the P1 pad (the Analogizer's SNAC, clk_analogizer)
+  wire        jvs_zapper_on, jvs_zapper_trig;
+  wire  [7:0] jvs_zapper_x, jvs_zapper_y;
   wire [31:0] p1_joy, p2_joy;
   reg [31:0] p1_joystick, p2_joystick;
   reg  [15:0] p1_controls, p2_controls, p3_controls, p4_controls;
@@ -893,6 +902,16 @@ always @(posedge clk_ppu_21_47) begin
 
 wire SYNC = ~^{video_hs_nes, video_vs_nes};
 
+  //the JVS gun's Zapper, while the Analogizer's SNAC is in use (clk_analogizer and clk_ppu_21_47: the same PLL)
+  reg        ext_zapper_on = 1'b0, ext_zapper_trig = 1'b0;
+  reg  [7:0] ext_zapper_x = 8'd0, ext_zapper_y = 8'd0;
+  always @(posedge clk_ppu_21_47) begin
+    ext_zapper_on   <= jvs_zapper_on && analogizer_ena_s && snac_game_cont_type != 5'h0;
+    ext_zapper_x    <= jvs_zapper_x;
+    ext_zapper_y    <= jvs_zapper_y;
+    ext_zapper_trig <= jvs_zapper_trig;
+  end
+
 //*** Analogizer Interface V1.0 ***
 //reg analogizer_ena;
 reg [3:0] analog_video_type;
@@ -928,6 +947,11 @@ generate
                                   .USE_OLD_STYLE_SVGA_SCANDOUBLER(`USE_OLD_STYLE_SCANDOUBLER)) 
                                 analogizer (
         .clk_74a(clk_74a),
+        .nes_ram_wr(nes_ram_wr),
+        .nes_ram_wa(nes_ram_wa),
+        .nes_ram_wd(nes_ram_wd),
+        .rom_load(ioctl_download),
+        .dataslot_allcomplete(dataslot_allcomplete),
         .i_clk(clk_analogizer),
         .i_rst(external_reset_s), //i_rst is active high
                 //Enable Analogizer (global setting)
@@ -969,6 +993,10 @@ generate
         .scandoubler(1'b1), //logic for disable/enable the scandoubler
         //SNAC interface
         .p1_btn_state(p1_btn),
+        .jvs_zapper_on(jvs_zapper_on),
+        .jvs_zapper_x(jvs_zapper_x),
+        .jvs_zapper_y(jvs_zapper_y),
+        .jvs_zapper_trig(jvs_zapper_trig),
         .p1_joy_state(p1_joy),
         .p2_btn_state(p2_btn),  
         .p2_joy_state(p2_joy),
@@ -998,6 +1026,11 @@ generate
                                   .USE_OLD_STYLE_SVGA_SCANDOUBLER(`USE_OLD_STYLE_SCANDOUBLER)) 
                                 analogizer (
         .clk_74a(clk_74a),
+        .nes_ram_wr(nes_ram_wr),
+        .nes_ram_wa(nes_ram_wa),
+        .nes_ram_wd(nes_ram_wd),
+        .rom_load(ioctl_download),
+        .dataslot_allcomplete(dataslot_allcomplete),
         .i_clk(clk_analogizer),
         .i_rst(external_reset_s), //i_rst is active high
 
@@ -1040,6 +1073,10 @@ generate
         .scandoubler(1'b1), //logic for disable/enable the scandoubler
         //SNAC interface
         .p1_btn_state(p1_btn),
+        .jvs_zapper_on(jvs_zapper_on),
+        .jvs_zapper_x(jvs_zapper_x),
+        .jvs_zapper_y(jvs_zapper_y),
+        .jvs_zapper_trig(jvs_zapper_trig),
         .p1_joy_state(p1_joy),
         .p2_btn_state(p2_btn),  
         .p2_joy_state(p2_joy),
@@ -1067,6 +1104,9 @@ endgenerate
 /*[ANALOGIZER_HOOK_END]*/
 
   nes_top nes (
+      .ram_wr(nes_ram_wr),
+      .ram_wa(nes_ram_wa),
+      .ram_wd(nes_ram_wd),
       .clk_74a(clk_74a),
       .clk_ppu_21_47(clk_ppu_21_47),
       .clk_85_9(clk_85_9),
@@ -1092,6 +1132,11 @@ endgenerate
 
       .p1_lstick_x(p1_joystick[7:0]),
       .p1_lstick_y(p1_joystick[15:8]),
+
+      .ext_zapper_on(ext_zapper_on),
+      .ext_zapper_x(ext_zapper_x),
+      .ext_zapper_y(ext_zapper_y),
+      .ext_zapper_trig(ext_zapper_trig),
 
       .p2_button_a(p2_controls[4]),
       .p2_button_b(p2_controls[5]),

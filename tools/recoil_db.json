@@ -1,0 +1,196 @@
+{
+    "games": [
+        {
+            "name": "Duck Hunt (World) (JUE)",
+            "rom": "4b6d58fe 00006010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Duck Hunt (JUE) [h1]",
+            "rom": "0fc67db6 00006010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Duck Hunt (JUE) [h2]",
+            "rom": "df0b78bf 0000a010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Duck Hunt (JUE) [h3]",
+            "rom": "d3f8a40a 0000a090",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Duck Hunt (JUE) [p1]",
+            "rom": "1ada18bb 00006010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Duck Hunt (JUE) [p2]",
+            "rom": "fed91ce8 0000a010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Super Mario Bros. + Duck Hunt (Europe)",
+            "rom": "a4352ad2 00014010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Super Mario Bros. + Duck Hunt (USA)",
+            "rom": "9957e16b 00014010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Super Mario Bros. + Duck Hunt + World Class Track Meet (USA)",
+            "rom": "04e62cab 00030010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "00BA:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Operation Wolf (USA): the bullets' units digit, $50 (tens $51, magazines $52)",
+            "rom": "c5485548 00040010",
+            "rules": [
+                {
+                    "on": "digit",
+                    "at": "0050:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Mechanized Attack (USA): bullets $05F3 (40, binary)",
+            "rom": "715c4efc 00030010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "05F3:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Freedom Force (USA): P1 ammo $0515 (36, binary; $0525 is P2's, in a 2-player game)",
+            "rom": "ccb997f6 00040010",
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "0515:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Gumshoe (USA, Europe): bullets $E3, a BCD byte",
+            "rom": "4f8caef8 00028010",
+            "rules": [
+                {
+                    "on": "bcd",
+                    "at": "00E3:b",
+                    "player": 1,
+                    "pulse": 50
+                }
+            ]
+        },
+        {
+            "name": "Laser Invasion (USA): s0 not the demo ($69), s1 flying ($66B: 81 ground, 80 3D, 00 flying)",
+            "rom": "c90390bc 00040010",
+            "states": [
+                "0069:b:02:00",
+                "066B:b:80:00"
+            ],
+            "rules": [
+                {
+                    "on": "dec",
+                    "at": "068C:b",
+                    "player": 1,
+                    "pulse": 40,
+                    "if": [
+                        "s0"
+                    ]
+                },
+                {
+                    "on": "dec",
+                    "at": "006E:b",
+                    "player": 1,
+                    "pulse": 90,
+                    "if": [
+                        "s0"
+                    ]
+                },
+                {
+                    "on": "trigger",
+                    "player": 1,
+                    "if": [
+                        "s0",
+                        "s1"
+                    ]
+                }
+            ]
+        }
+    ]
+}

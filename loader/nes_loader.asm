@@ -24,6 +24,7 @@ constant save_dataslot = 10
 constant pal_dataslot = 11
 constant analogizer_dataslot = 20
 constant jvs_profile_dataslot = 24
+constant recoil_db_dataslot = 25
 
 
 //number of mapper codes to check in the data table
@@ -366,6 +367,13 @@ load_settings:
 	jp nz,jvs_profile_done
 	loadf r1 // Load JVS profile
 jvs_profile_done:
+
+	//recoil database (recoil_db.bin in the core's folder, tools/recoil_db.py): only if the file is there
+	ld r1,#recoil_db_dataslot
+	queryslot r1
+	jp nz,recoil_db_done
+	loadf r1 // Load the recoil database
+recoil_db_done:
 
 	//Send SYS_TYPE to the CORE at address 0x330
 	ld r8,#0x330

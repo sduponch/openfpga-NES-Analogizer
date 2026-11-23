@@ -72,6 +72,13 @@
     
 module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parameter LINE_LENGTH, parameter ADDRESS_ANALOGIZER_CONFIG = 8'hF7,parameter reg USE_OLD_STYLE_SVGA_SCANDOUBLER = 1'b0) (
 	input  wire clk_74a,
+	//the recoil from the game's memory: the NES CPU's internal RAM writes (clk_ppu_21_47, the same PLL as i_clk at
+	//half its rate: sampled here), and the cartridge slot's load (clk_74a), for recoil_db.sv / mem_recoil.sv
+	input  wire        nes_ram_wr,
+	input  wire [10:0] nes_ram_wa,
+	input  wire  [7:0] nes_ram_wd,
+	input  wire        rom_load,
+	input  wire        dataslot_allcomplete,
 	input  wire i_clk,
     input  wire i_rst,
 	input  wire i_ena,
@@ -111,6 +118,10 @@ module openFPGA_Pocket_Analogizer #(parameter MASTER_CLK_FREQ=50_000_000, parame
 	input  wire scandoubler, //logic for disable/enable the scandoubler
 	//SNAC interface
     output wire [15:0] p1_btn_state,
+	output wire        jvs_zapper_on,         //JVS: P1's gun as the Zapper (port 2): on, aim, trigger (i_clk)
+	output wire  [7:0] jvs_zapper_x,
+	output wire  [7:0] jvs_zapper_y,
+	output wire        jvs_zapper_trig,
 	output wire [31:0] p1_joy_state,
     output wire [15:0] p2_btn_state,
 	output wire [31:0] p2_joy_state,
@@ -223,6 +234,27 @@ assign analogizer_osd_out        = analogizer_osd_out2;
     wire CART_PIN31_IN ;
     wire CART_PIN31_DIR ;
 
+	//The recoil from the game's memory: the recoil database (recoil_db.bin data slot, 0x51000000, tools/recoil_db.py) gives
+	//the game's shot counter (and weapon, in-game condition) addresses, found by a fingerprint of the ROM; mem_recoil
+	//watches the CPU's writes there (a NES byte write fed as a 68000 byte lane)
+	wire        rdb_valid;
+	wire  [4:0] rdb_entry;
+	wire  [8:0] rdb_rd_addr;
+	wire [63:0] rdb_rd_data;
+	recoil_db rdb (
+		.clk_74a(clk_74a), .bridge_wr(bridge_wr), .bridge_addr(bridge_addr), .bridge_wr_data(bridge_wr_data),
+		.allcomplete(dataslot_allcomplete), .rom_load(rom_load), .cfg_valid(rdb_valid), .cfg_entry(rdb_entry),
+		.clk(i_clk), .rd_addr(rdb_rd_addr), .rd_data(rdb_rd_data)
+	);
+	wire  [1:0] memrc_active, memrc_trig_en, memrc_shot;
+	wire  [7:0] memrc_pulse1, memrc_pulse2;
+	mem_recoil memrc (
+		.clk(i_clk), .cfg_valid(rdb_valid), .cfg_entry(rdb_entry), .rd_addr(rdb_rd_addr), .rd_data(rdb_rd_data),
+		.ram_wr(nes_ram_wr), .ram_wa({5'd0, nes_ram_wa[10:1]}), .ram_wd({nes_ram_wd, nes_ram_wd}),
+		.ram_wbe(nes_ram_wa[0] ? 2'b01 : 2'b10), .active(memrc_active), .trig_en(memrc_trig_en), .shot(memrc_shot),
+		.pulse1_ms(memrc_pulse1), .pulse2_ms(memrc_pulse2)
+	);
+
 	openFPGA_Pocket_Analogizer_SNAC #(.MASTER_CLK_FREQ(MASTER_CLK_FREQ)) snac
 	(
 		.i_clk(i_clk),
@@ -231,6 +263,10 @@ assign analogizer_osd_out        = analogizer_osd_out2;
 		.game_cont_type(snac_game_cont_type), //0-15 Conf. A, 16-31 Conf. B
 		//.game_cont_sample_rate(game_cont_sample_rate), //0 compatibility mode (slowest), 1 normal mode, 2 fast mode, 3 superfast mode
 		.p1_btn_state(p1_btn_state),
+		.jvs_zapper_on(jvs_zapper_on),
+		.jvs_zapper_x(jvs_zapper_x),
+		.jvs_zapper_y(jvs_zapper_y),
+		.jvs_zapper_trig(jvs_zapper_trig),
 		.p1_joy_state(p1_joy_state),
 		.p2_btn_state(p2_btn_state),
 		.p2_joy_state(p2_joy_state),
@@ -255,6 +291,11 @@ assign analogizer_osd_out        = analogizer_osd_out2;
 		.vendor_wr_addr(bridge_addr[7:2]),
 		.vendor_wr_data(bridge_wr_data),
 		.recoil_mode(jvs_recoil_mode_s),
+		.mem_active(memrc_active),
+		.mem_trig_en(memrc_trig_en),
+		.mem_shot(memrc_shot),
+		.mem_pulse1_ms(memrc_pulse1),
+		.mem_pulse2_ms(memrc_pulse2),
 		//debug
 		.DBG_TX(DBG_TX),
     	.o_stb(o_stb)

@@ -1,4 +1,8 @@
 module nes_top (
+    // the CPU's internal RAM writes (NES ram_wr, clk_ppu_21_47): the recoil from the game's memory
+    output wire        ram_wr,
+    output wire [10:0] ram_wa,
+    output wire  [7:0] ram_wd,
     input clk_74a,
     input clk_ppu_21_47,
     input clk_85_9,
@@ -59,6 +63,11 @@ module nes_top (
     
     //Analogizer SNAC Zapper (always on P2 port)
     input wire SNAC_Zapper_Trigger,
+    //the JVS gun as the emulated Zapper (port 2), instead of P1's stick and A (which stay the port 1 pad)
+    input wire       ext_zapper_on,
+    input wire [7:0] ext_zapper_x,
+    input wire [7:0] ext_zapper_y,
+    input wire       ext_zapper_trig,
     input wire SNAC_Zapper_Light,
 
     // Settings
@@ -199,6 +208,9 @@ module nes_top (
 
 
   NES nes (
+      .ram_wr        (ram_wr),
+      .ram_wa        (ram_wa),
+      .ram_wd        (ram_wd),
       .clk           (clk_ppu_21_47),
       .reset_nes     (reset_nes),
       .cold_reset    (downloading & (type_fds | type_nes)),
@@ -424,13 +436,13 @@ module nes_top (
   zapper zap (
       .clk(clk_ppu_21_47),
       .reset(reset_nes | ~lightgun_enabled[0]),
-      .dpad_up(p1_dpad_up),
-      .dpad_down(p1_dpad_down),
-      .dpad_left(p1_dpad_left),
-      .dpad_right(p1_dpad_right),
+      .dpad_up(p1_dpad_up && !ext_zapper_on),
+      .dpad_down(p1_dpad_down && !ext_zapper_on),
+      .dpad_left(p1_dpad_left && !ext_zapper_on),
+      .dpad_right(p1_dpad_right && !ext_zapper_on),
       .dpad_aim_speed(lightgun_dpad_aim_speed),
-      .analog({p1_lstick_y, p1_lstick_x}),
-      .analog_trigger(p1_button_a),
+      .analog(ext_zapper_on ? {ext_zapper_y, ext_zapper_x} : {p1_lstick_y, p1_lstick_x}),
+      .analog_trigger(ext_zapper_on ? ext_zapper_trig : p1_button_a),
       .cycle(cycle),
       .scanline(scanline),
       .vde(~VBlank),

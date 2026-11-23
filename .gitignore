@@ -70,3 +70,5 @@ cr_ie_info.json
 # ROMS Checklist
 !checklist.sha1
 !checklist.md5
+sim/work/
+sim/transcript

@@ -70,6 +70,11 @@ assign aout = dmc_ack ? dmc_dma_addr : !odd_cycle ? sprite_dma_addr : 16'h2004;
 endmodule
 
 module NES(
+	// (the Pocket's Analogizer: the CPU's writes into its 2 KB of internal RAM, 0000-1FFF with the mirrors, for the
+	// recoil from the game's memory, analogizer/mem_recoil.sv) one clock a write
+	output        ram_wr,
+	output [10:0] ram_wa,
+	output  [7:0] ram_wd,
 	input         clk,
 	input         reset_nes,
 	input         cold_reset,
@@ -604,6 +609,9 @@ wire [7:0] prg_din = dbus & (prg_conflict ? cpumem_din : 8'hFF);
 
 wire prg_read  = mr_int && cart_pre && !apu_cs && !ppu_cs;
 wire prg_write = mw_int && cart_pre;
+assign ram_wr = prg_write && !dma_aout_enable && addr[15:13] == 3'b000;
+assign ram_wa = addr[10:0];
+assign ram_wd = dbus;
 
 wire prg_allow, prg_bus_write, prg_conflict, vram_a10, vram_ce, chr_allow;
 wire [24:0] prg_linaddr;

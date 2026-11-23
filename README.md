@@ -131,7 +131,8 @@ Please report any issues encountered to this repo. Most likely any problems are 
 ## JVS (Analogizer JVS SNAC adapter, branch `jvs`)
 
 An arcade cabinet's JVS I/O board as the NES controllers, through the JVS SNAC adapter (the [jvs library](https://github.com/sduponch/jvs)'s `jvs_ctrl`).
-Tested on an Analogue Pocket with a Sega 838-13683B board (Duck Hunt with the Zapper and recoil).
+Tested on an Analogue Pocket with a Sega 838-13683B board: the Zapper and its recoil, and the recoil from the game's
+memory in Duck Hunt, Operation Wolf, Mechanized Attack, Freedom Force and Gumshoe.
 
 - Select it with **SNAC controller type 20 (JVS)** in `Assets/analogizer/common/analogizer.bin`.
 - Panel: Start = Start, Service or a coin = Select, push 1 = B, push 2 = A, push 3 / 4 = the Pocket's Y / X.
@@ -140,8 +141,38 @@ Tested on an Analogue Pocket with a Sega 838-13683B board (Duck Hunt with the Za
   (`scripts/jvs_vendor.py`). Reloading it does not reset the game. Shipped: `jvs_vendor.bin` (empty),
   `jvs_zapper_p1.bin`, `jvs_sega_recoil_test.bin`, `jvs_namco_timecrisis4.bin`.
 - **Use Zapper**: Off, Emulated, SNAC Zapper, **Emulated + recoil**, **Emulated + recoil auto**. With a profile's gun,
-  the P1 axes aim the emulated Zapper and its trigger fires; the recoil is made from the trigger (single: 50 ms a shot;
-  auto: 50 ms on / 150 ms off while held) on the profile's OUTPUT1 bits.
+  P1's gun is the emulated Zapper on port 2 (its axes aim, its trigger fires), apart from the P1 pad on port 1: the
+  panel's buttons without the gun's trigger switches (else a trigger wired to push 1 also pressed B, and Operation
+  Wolf threw a grenade at each shot, trigger + B). For a game not in the recoil database (below), the recoil is made
+  from the trigger (single: 50 ms a shot; auto: 50 ms on / 150 ms off while held) on the profile's OUTPUT1 bits.
+- **Recoil from the game's memory** (with a recoil mode on): for a game in `recoil_db.bin` (core folder, data slot 25,
+  loaded at start, no menu line), the gun kicks only when the game really fires. There is no kick shooting with no
+  shot left, between rounds, on a title screen or in the attract mode's demo.
+  - `analogizer/recoil_db.sv` finds the game by a fingerprint of the whole ROM file and holds the database (4 KB, 32
+    games); `analogizer/mem_recoil.sv` runs the game's rules on the CPU's writes into its internal RAM (`rtl/nes.v`
+    `ram_wr`). Other games keep the trigger's recoil.
+  - A game has up to 4 state variables (an address whose last value written is kept: a demo flag, the game's phase,
+    the weapon in use) and up to 9 rules: "on an event at an address, while these states' conditions hold, a pulse
+    of N ms on gun 1 or 2". Events: `dec` (a counter one less, from more than 0), `digit` (a decimal digit, 0 -> 9
+    included), `bcd` (a BCD byte), `becomes` (a value written), `trigger` (the gun's trigger recoil, for an unlimited
+    weapon). A pulse can come from an 8-entry table indexed by a state (the weapon in use).
+  - Built by `tools/recoil_db.py tools/recoil_db.json -o recoil_db.bin` (the format is in the script's header);
+    `tools/recoil_db.py --key-of game.nes` gives a ROM's key. Adding a game is a JSON edit and a file copy, no build.
+
+  Shipped (counters, demo flags and phases found with MAME):
+  - Duck Hunt (World), its hacks / pirate versions h1-h3 and p1-p2, and the Super Mario Bros. + Duck Hunt (Europe,
+    USA) and + Track Meet carts: the shots left at `$00BA`.
+  - Operation Wolf (USA): the bullets are BCD digits (`$51` tens, `$50` units, `$52` magazines); the units are watched
+    as a decimal digit. The game writes them only for a real shot; with the Zapper it fires one shot per pull.
+  - Mechanized Attack (USA): the bullets at `$05F3` (40 a magazine).
+  - Freedom Force (USA): player 1's ammo at `$0515` (36; `$0525` is player 2's, in a 2-player game).
+  - Gumshoe (USA, Europe): the bullets at `$E3`, a BCD byte (the balloons add).
+  - Laser Invasion (USA): the pistol (ground and 3D phases) at `$068C`, the missiles (fired with B) at `$006E`, the
+    flying cannon (unlimited) by the trigger; `$0069` is 2 in the attract mode's demos, `$066B` the phase (81 ground,
+    80 3D, 00 flying).
+  - Not in the database: To The Earth has no ammo (a shot is an animation counter, 6 -> 0); Bayou Billy is to do.
+
+  Bench: `sim/tb_mem_recoil_nes.sv` (the shipped games, and a test entry for every rule kind).
 - Changes to fit the menu (16 entries at most, the reloadable profile slot takes one): the three section titles
   were removed. The Chip32 loader loads the profile slot (`loadf`), and the Analogizer is enabled by default after a
   slot reload (the loader restarts the core).

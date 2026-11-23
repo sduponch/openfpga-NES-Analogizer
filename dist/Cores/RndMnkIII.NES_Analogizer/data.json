@@ -51,6 +51,16 @@
         "extensions": ["bin"],
         "size_maximum": "0x100",
         "address": "0x50000000"
+      },
+      {
+        "name": "Recoil DB",
+        "id": 25,
+        "required": false,
+        "filename": "recoil_db.bin",
+        "parameters": "0x2",
+        "extensions": ["bin"],
+        "size_maximum": "0x1000",
+        "address": "0x51000000"
       }
     ]
   }

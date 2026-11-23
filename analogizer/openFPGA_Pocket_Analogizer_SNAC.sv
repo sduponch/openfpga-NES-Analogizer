@@ -82,6 +82,11 @@ module openFPGA_Pocket_Analogizer_SNAC #(parameter MASTER_CLK_FREQ=50_000_000)
     input [1:0] i_VIB_SW2,
 	input [7:0] i_VIB_DAT2,  
     output reg [15:0] p1_btn_state,
+    //JVS: P1's gun as the NES Zapper (port 2), apart from the P1 pad (port 1): on, aim X 0..255 / Y 0..239, trigger
+    output wire       jvs_zapper_on,
+    output wire [7:0] jvs_zapper_x,
+    output wire [7:0] jvs_zapper_y,
+    output wire       jvs_zapper_trig,
     output reg [31:0] p1_joy_state,
     output reg [15:0] p2_btn_state,
     output reg [31:0] p2_joy_state,
@@ -106,6 +111,13 @@ module openFPGA_Pocket_Analogizer_SNAC #(parameter MASTER_CLK_FREQ=50_000_000)
     input  wire [5:0]  vendor_wr_addr,
     input  wire [31:0] vendor_wr_data,
     input  wire [1:0]  recoil_mode,       //gun recoil: 0 off, 1 single, 2 auto (machine gun)
+    //the recoil from the game's memory (mem_recoil.sv, i_clk): for a player marked active, a pulse of pulseN_ms at each
+    //shot the game really fires, instead of the trigger's
+    input  wire [1:0]  mem_active,
+    input  wire [1:0]  mem_trig_en,       //an active player's trigger recoil is back on while a trigger rule holds
+    input  wire [1:0]  mem_shot,
+    input  wire [7:0]  mem_pulse1_ms,
+    input  wire [7:0]  mem_pulse2_ms,
     //debug
     output wire [3:0] DBG_TX,
     output wire o_stb
@@ -564,15 +576,26 @@ pcengine_game_controller_multitap #(.MASTER_CLK_FREQ(MASTER_CLK_FREQ)) pcegmutit
     reg [RW-1:0] recoil_cnt [2];
     reg [1:0] gun_trigger_d;
     wire      recoil_auto = (recoil_mode == 2'd2);
+    //the recoil from the game's memory: milliseconds left of each player's pulse
+    localparam integer MS = MASTER_CLK_FREQ / 1000;
+    localparam integer MSW = $clog2(MS);
+    reg [MSW-1:0] ms_cnt = '0;
+    wire      ms_tick = ms_cnt == MSW'(MS - 1);
+    always @(posedge i_clk) ms_cnt <= ms_tick ? '0 : ms_cnt + 1'b1;
+    reg [7:0] mem_left [2];
     always @(posedge i_clk) begin
         gun_trigger_d <= gun_trigger;
         for (int p = 0; p < 2; p++) begin
-            if (recoil_mode == 2'd0) recoil_cnt[p] <= '0;
+            if (recoil_mode == 2'd0 || !mem_active[p]) mem_left[p] <= 8'd0;
+            else if (mem_shot[p]) mem_left[p] <= p ? mem_pulse2_ms : mem_pulse1_ms;
+            else if (ms_tick && mem_left[p] != 0) mem_left[p] <= mem_left[p] - 1'b1;
+            if (recoil_mode == 2'd0 || (mem_active[p] && !mem_trig_en[p])) recoil_cnt[p] <= '0;
             else if ((gun_trigger[p] && !gun_trigger_d[p]) || (recoil_auto && gun_trigger[p] && recoil_cnt[p] == 0))
                 recoil_cnt[p] <= recoil_auto ? RW'(RECOIL_CYC) : RW'(RECOIL_ON);
             else if (recoil_cnt[p] != 0) recoil_cnt[p] <= recoil_cnt[p] - 1'b1;
             p_output_digital[p] <= !dout_valid ? 24'h000000 :
-                                   (dout_base | (recoil_cnt[p] > (recoil_auto ? RW'(RECOIL_CYC - RECOIL_ON) : RW'(0)) ? dout_recoil[p] : 24'h000000));
+                                   (dout_base | ((recoil_cnt[p] > (recoil_auto ? RW'(RECOIL_CYC - RECOIL_ON) : RW'(0))) || mem_left[p] != 0
+                                                 ? dout_recoil[p] : 24'h000000));
         end
     end
     //P1's gun (axes defined in the profile) as the Pocket's left stick, absolute: X 0..255, Y 0..239 -- the NES core's
@@ -580,6 +603,15 @@ pcengine_game_controller_multitap #(.MASTER_CLK_FREQ(MASTER_CLK_FREQ)) pcegmutit
     wire [7:0] gun_x8 = axis_value[0][15:8];
     wire [7:0] gun_y8 = (32'(axis_value[1]) * 32'd240) >> 16;
     wire       p1_gun = axis_defined[0] || axis_defined[1];
+    //the Zapper (port 2) is the gun alone; the P1 pad (port 1) is the panel without the gun's trigger switches (else
+    //a trigger on push 1 also presses B: Operation Wolf throws a grenade on trigger + B). jvs_order reverses bits
+    //13..0, so it is its own inverse: the trigger mask back in the Pocket's key layout.
+    assign jvs_zapper_on   = game_cont_type == GC_JVS && p1_gun && gun_defined[0];
+    assign jvs_zapper_x    = gun_x8;
+    assign jvs_zapper_y    = gun_y8;
+    assign jvs_zapper_trig = gun_trigger[0];
+    wire [15:0] pad1_sw = gun_defined[0] ? (jvs_sw1 & ~jvs_order(trig_mask[0])) : jvs_sw1;
+    wire [15:0] pad2_sw = gun_defined[1] ? (jvs_sw2 & ~jvs_order(trig_mask[1])) : jvs_sw2;
 
     //a coin is reported for one polling cycle (~10 ms): held 100 ms so that the game sees SELECT
     localparam integer COIN_HOLD = MASTER_CLK_FREQ / 10;
@@ -647,10 +679,8 @@ pcengine_game_controller_multitap #(.MASTER_CLK_FREQ(MASTER_CLK_FREQ)) pcegmutit
         GC_JVS: begin
             SNAC_OUT1 = JVS_UART_TX;
             SNAC_OUT2 = JVS_485_DIR;
-            p1_btn_state = jvs_to_nes(jvs_sw1, coin1_hold != 0);
-            p2_btn_state = jvs_to_nes(jvs_sw2, coin2_hold != 0);
-            if (p1_gun) p1_joy_state = {16'h8080, gun_y8, gun_x8};
-            if (gun_defined[0]) p1_btn_state[4] = gun_trigger[0];        //the gun trigger is the Zapper's (A)
+            p1_btn_state = jvs_to_nes(pad1_sw, coin1_hold != 0);
+            p2_btn_state = jvs_to_nes(pad2_sw, coin2_hold != 0);
             p3_btn_state = 16'h0;
             p4_btn_state = 16'h0;
         end
